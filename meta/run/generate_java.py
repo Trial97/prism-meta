@@ -9,9 +9,12 @@ from meta.common import ensure_component_dir, launcher_path, upstream_path
 from meta.common.java import (
     JAVA_MINECRAFT_COMPONENT,
     JAVA_ADOPTIUM_COMPONENT,
+    JAVA_OPENJ9_COMPONENT,
     JAVA_AZUL_COMPONENT,
     ADOPTIUM_DIR,
     ADOPTIUM_VERSIONS_DIR,
+    OPENJ9_DIR,
+    OPENJ9_VERSIONS_DIR,
     AZUL_DIR,
     AZUL_VERSIONS_DIR,
 )
@@ -360,6 +363,35 @@ def main():
                     add_java_runtime(runtime, major)
 
     writeJavas(javas=javas, uid=JAVA_ADOPTIUM_COMPONENT)
+    javas = {}
+    print("Processing OpenJ9 Releases")
+    openj9_path = os.path.join(UPSTREAM_DIR, OPENJ9_DIR, "available_releases.json")
+    if os.path.exists(openj9_path):
+        openj9_available_releases = AdoptiumAvailableReleases.parse_file(openj9_path)
+        for major in openj9_available_releases.available_releases:
+            openj9_releases = AdoptiumReleases.parse_file(
+                os.path.join(UPSTREAM_DIR, OPENJ9_VERSIONS_DIR, f"java{major}.json")
+            )
+            for _, rls in openj9_releases:
+                for binary in rls.binaries:
+                    if (
+                        binary.package is None
+                        or binary.image_type is not AdoptiumImageType.Jre
+                    ):
+                        continue
+                    binary_arch = translate_arch(str(binary.architecture))
+                    binary_os = translate_os(str(binary.os))
+                    if binary_arch is None or binary_os is None:
+                        print(f"Ignoring release for {binary.os} {binary.architecture}")
+                        continue
+
+                    java_os = JavaRuntimeOS(f"{binary_os}-{binary_arch}")
+                    runtime = adoptium_release_binary_to_java_runtime(
+                        rls, binary, java_os
+                    )
+                    add_java_runtime(runtime, major)
+
+    writeJavas(javas=javas, uid=JAVA_OPENJ9_COMPONENT)
     javas = {}
     print("Processing Azul Packages")
     azul_path = os.path.join(UPSTREAM_DIR, AZUL_DIR, "packages.json")

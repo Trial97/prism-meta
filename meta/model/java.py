@@ -121,10 +121,12 @@ class APIQuery(MetaBase):
 
 class AdoptiumJvmImpl(StrEnum):
     Hostspot = "hotspot"
+    OpenJ9 = "openj9"
 
 
 class AdoptiumVendor(StrEnum):
     Eclipse = "eclipse"
+    IBM = "ibm"
 
 
 class AdoptiumArchitecture(StrEnum):
@@ -192,10 +194,15 @@ class AdoptiumOs(StrEnum):
     AlpineLinux = "alpine-linux"
 
 
-ADOPTIUM_API_BASE = " https://api.adoptium.net"
-ADOPTIUM_API_FEATURE_RELEASES = f"{ADOPTIUM_API_BASE}/v3/assets/feature_releases/{{feature_version}}/{{release_type}}"
+ADOPTIUM_API_BASE = "https://api.adoptium.net"
+ADOPTIUM_API_FEATURE_RELEASES = (
+    "{base_url}/v3/assets/feature_releases/{feature_version}/{release_type}"
+)
 # ?image_type={{image_type}}&heap_size={{heap_size}}&project={{project}}&vendor={{vendor}}&page_size={{page_size}}&page={{page}}&sort_method={{sort_method}}&sort_order={{sort_order}}
 ADOPTIUM_API_AVAILABLE_RELEASES = f"{ADOPTIUM_API_BASE}/v3/info/available_releases"
+
+OPENJ9_API_BASE = "https://api.adoptopenjdk.net"
+OPENJ9_API_AVAILABLE_RELEASES = f"{OPENJ9_API_BASE}/v3/info/available_releases"
 
 
 class AdoptiumAPIFeatureReleasesQuery(APIQuery):
@@ -218,14 +225,29 @@ def adoptiumAPIFeatureReleasesUrl(
     feature: int,
     release_type: AdoptiumReleaseType = AdoptiumReleaseType.GenralAccess,
     query: AdoptiumAPIFeatureReleasesQuery = AdoptiumAPIFeatureReleasesQuery(),
+    base_url: str = ADOPTIUM_API_BASE,
 ):
     url = urlparse(
         ADOPTIUM_API_FEATURE_RELEASES.format(
             feature_version=feature,
             release_type=release_type.value,
+            base_url=base_url,
         )
     )
     return urlunparse(url._replace(query=query.to_query()))
+
+
+def openj9APIFeatureReleasesUrl(
+    feature: int,
+    release_type: AdoptiumReleaseType = AdoptiumReleaseType.GenralAccess,
+    query: AdoptiumAPIFeatureReleasesQuery = AdoptiumAPIFeatureReleasesQuery(),
+):
+    return adoptiumAPIFeatureReleasesUrl(
+        feature=feature,
+        release_type=release_type,
+        query=query,
+        base_url=OPENJ9_API_BASE,
+    )
 
 
 class AdoptiumAvailableReleases(MetaBase):

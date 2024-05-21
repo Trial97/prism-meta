@@ -7,11 +7,17 @@ from meta.common.java import (
     AZUL_DIR,
     ADOPTIUM_VERSIONS_DIR,
     AZUL_VERSIONS_DIR,
+    OPENJ9_DIR,
+    OPENJ9_VERSIONS_DIR,
 )
 from meta.model.java import (
     ADOPTIUM_API_AVAILABLE_RELEASES,
+    OPENJ9_API_AVAILABLE_RELEASES,
     adoptiumAPIFeatureReleasesUrl,
+    openj9APIFeatureReleasesUrl,
     AdoptiumImageType,
+    AdoptiumJvmImpl,
+    AdoptiumVendor,
     AdoptiumAPIFeatureReleasesQuery,
     AdoptiumAvailableReleases,
     AdoptiumRelease,
@@ -35,6 +41,8 @@ ensure_upstream_dir(ADOPTIUM_DIR)
 ensure_upstream_dir(AZUL_DIR)
 ensure_upstream_dir(ADOPTIUM_VERSIONS_DIR)
 ensure_upstream_dir(AZUL_VERSIONS_DIR)
+ensure_upstream_dir(OPENJ9_DIR)
+ensure_upstream_dir(OPENJ9_VERSIONS_DIR)
 
 
 sess = default_session()
@@ -102,6 +110,78 @@ def main():
         releases = AdoptiumReleases(__root__=releases_for_feature)
         feature_file = os.path.join(
             UPSTREAM_DIR, ADOPTIUM_VERSIONS_DIR, f"java{feature}.json"
+        )
+        releases.write(feature_file)
+
+    print("Getting OpenJ9 Release Manifests ")
+    r = sess.get(OPENJ9_API_AVAILABLE_RELEASES)
+    r.raise_for_status()
+
+    available = AdoptiumAvailableReleases(**r.json())
+
+    available_releases_file = os.path.join(
+        UPSTREAM_DIR, OPENJ9_DIR, "available_releases.json"
+    )
+    available.write(available_releases_file)
+
+    for feature in available.available_releases:
+        print("Getting Manifests for Adoptium feature release:", feature)
+
+        page_size = 10
+
+        releases_for_feature: list[AdoptiumRelease] = []
+        page = 0
+        while True:
+            query = AdoptiumAPIFeatureReleasesQuery(
+                image_type=AdoptiumImageType.Jre,
+                page_size=page_size,
+                page=page,
+                jvm_impl=AdoptiumJvmImpl.OpenJ9,
+                vendor=AdoptiumVendor.IBM,
+            )
+            api_call = openj9APIFeatureReleasesUrl(feature, query=query)
+            print("Fetching JRE Page:", page, api_call)
+            r_rls = sess.get(api_call)
+            if r_rls.status_code == 404:
+                break
+            else:
+                r_rls.raise_for_status()
+
+            releases = list(AdoptiumRelease(**rls) for rls in r_rls.json())
+            releases_for_feature.extend(releases)
+
+            if len(r_rls.json()) < page_size:
+                break
+            page += 1
+
+        page = 0
+        while True:
+            query = AdoptiumAPIFeatureReleasesQuery(
+                image_type=AdoptiumImageType.Jdk,
+                page_size=page_size,
+                page=page,
+                jvm_impl=AdoptiumJvmImpl.OpenJ9,
+                vendor=AdoptiumVendor.IBM,
+            )
+            api_call = openj9APIFeatureReleasesUrl(feature, query=query)
+            print("Fetching JDK Page:", page, api_call)
+            r_rls = sess.get(api_call)
+            if r_rls.status_code == 404:
+                break
+            else:
+                r_rls.raise_for_status()
+
+            releases = list(AdoptiumRelease(**rls) for rls in r_rls.json())
+            releases_for_feature.extend(releases)
+
+            if len(r_rls.json()) < page_size:
+                break
+            page += 1
+
+        print("Total Adoptium releases for feature:", len(releases_for_feature))
+        releases = AdoptiumReleases(__root__=releases_for_feature)
+        feature_file = os.path.join(
+            UPSTREAM_DIR, OPENJ9_VERSIONS_DIR, f"java{feature}.json"
         )
         releases.write(feature_file)
 
